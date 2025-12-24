@@ -11,7 +11,6 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 public class JwtUtils {
     @Value("${jwt.secret-key}")
@@ -30,7 +29,7 @@ public class JwtUtils {
         LocalDateTime currentTime = LocalDateTime.now();
         LocalDateTime expireTime = currentTime.plusMinutes(accessTokenExpire);
         // Set claims
-        Map<String, Objects> claims = new HashMap<>();
+        Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getUserId());
         claims.put("username", user.getUsername());
 

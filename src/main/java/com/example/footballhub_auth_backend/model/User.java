@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class User {
     @Id
-    private Integer user_id;
+    private Long userId;
 
     private String username;
 
