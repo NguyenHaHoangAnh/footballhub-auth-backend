@@ -7,10 +7,10 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginRequestDto {
-    private String username;
+public class TokenRequestDto {
+    private String accessToken;
 
-    private String password;
+    private String requestUrl;
 
-    private int authType;
+    private String requestMethod;
 }

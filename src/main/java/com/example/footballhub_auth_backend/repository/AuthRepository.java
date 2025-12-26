@@ -8,5 +8,4 @@ import java.util.Optional;
 
 @Repository
 public interface AuthRepository extends BaseRepo<User, Integer> {
-    Optional<User> findByUsername(String username);
 }

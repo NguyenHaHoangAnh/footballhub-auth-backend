@@ -1,16 +1,18 @@
 package com.example.footballhub_auth_backend.dto;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginRequestDto {
-    private String username;
+@Builder
+public class TokenResponseDto {
+    private boolean success;
 
-    private String password;
+    private boolean forbidden;
 
-    private int authType;
+    private UserDto info;
 }

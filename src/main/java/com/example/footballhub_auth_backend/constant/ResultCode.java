@@ -15,5 +15,6 @@ public enum ResultCode {
     public interface Code {
         String USERNAME_NOT_FOUND = "USERNAME_NOT_FOUND";
         String WRONG_PASSWORD = "WRONG_PASSWORD";
+        String USER_EXISTED = "USER_EXISTED";
     }
 }
