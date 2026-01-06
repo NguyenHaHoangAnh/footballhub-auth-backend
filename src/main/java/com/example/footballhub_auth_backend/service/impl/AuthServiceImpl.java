@@ -14,7 +14,6 @@ import com.example.footballhub_auth_backend.service.TokenService;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,6 +33,8 @@ public class AuthServiceImpl implements AuthService {
     private PasswordEncoder passwordEncoder;
 
     private ModelMapper modelMapper;
+
+    private static final Integer minPasswordLength = 6;
 
     public TokenDto generateToken(User user, int authType) throws Exception {
         String accessToken = tokenService.generateAccessToken(user);
@@ -55,6 +56,7 @@ public class AuthServiceImpl implements AuthService {
                     .info(modelMapper.map(user, UserDto.class))
                     .build();
         } else {
+            log.error("[GenerateToken error] {}", user.getUsername());
             throw new Exception(HttpStatus.UNAUTHORIZED.toString());
         }
 
@@ -91,19 +93,30 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public ResponseMsg<?> register(RegisterRequestDto requestDto) throws Exception {
         try {
-//            if (requestDto.getPassword().equals())
+            if (requestDto.getPassword().length() < minPasswordLength) {
+                log.error("[Register error] {} {}", requestDto.getUsername(), ResultCode.Code.PASSWORD_MIN_LENGTH);
+                return ResponseMsg.newResponse(HttpStatus.INTERNAL_SERVER_ERROR, ResultCode.Code.PASSWORD_MIN_LENGTH);
+            }
+
+            if (!requestDto.getPassword().equals(requestDto.getConfirmPassword())) {
+                log.error("[Register error] {} {}", requestDto.getUsername(), ResultCode.Code.PASSWORD_NOT_MATCH);
+                return ResponseMsg.newResponse(HttpStatus.INTERNAL_SERVER_ERROR, ResultCode.Code.PASSWORD_NOT_MATCH);
+            }
 
             Optional<User> optionalUser = this.userRepository.findByUsernameIgnoreCase(requestDto.getUsername());
 
             if (optionalUser.isPresent()) {
+                log.error("[Register error] {} {}", requestDto.getUsername(), ResultCode.Code.USER_EXISTED);
                 return ResponseMsg.newResponse(HttpStatus.INTERNAL_SERVER_ERROR, ResultCode.Code.USER_EXISTED);
             }
 
             User newUser = new User();
             newUser.setUsername(requestDto.getUsername());
             newUser.setPassword(passwordEncoder.encode(requestDto.getPassword()));
+            this.userRepository.save(newUser);
             return ResponseMsg.newOKResponse();
         } catch (Exception e) {
+            log.error("[Register error] {}", requestDto.getUsername(), e);
             throw new Exception(e);
         }
     }

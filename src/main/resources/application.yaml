@@ -15,7 +15,7 @@ spring:
         prepStmtCacheSize: 256
         prepStmtCacheSqlLimit: 2048
         useServerPrepStmts: true
-      schema: football
+      schema: admin
     url: jdbc:postgresql://localhost:5432/footballhub?currentSchema=admin&charSet=UTF8
     username: footballhub
     password: footballhub
