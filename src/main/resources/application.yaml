@@ -27,7 +27,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 jwt:
-  secret-key: secret-key
+  secret-key: this-is-the-secret-key-for-this-football-authentication-application-and-must-not-be-exposed-or-share-to-public-use-this-secret-key-in-other-service
   expire:
     access-token: 60
     refresh-token: 7

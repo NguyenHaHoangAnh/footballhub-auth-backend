@@ -30,8 +30,10 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private TokenService tokenService;
 
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
     private ModelMapper modelMapper;
 
     private static final Integer minPasswordLength = 6;

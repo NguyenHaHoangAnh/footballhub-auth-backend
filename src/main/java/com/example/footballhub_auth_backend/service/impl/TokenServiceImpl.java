@@ -26,14 +26,16 @@ import java.util.Optional;
 @Service
 @Slf4j
 public class TokenServiceImpl implements TokenService {
+    @Autowired
     private TokenProperties tokenProperties;
 
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
     private ModelMapper modelMapper;
 
-    private final SignatureAlgorithm ALGORITHM = SignatureAlgorithm.ES256;
+    private final SignatureAlgorithm ALGORITHM = SignatureAlgorithm.HS256;
 
     @Override
     public String generateAccessToken(User user) {
