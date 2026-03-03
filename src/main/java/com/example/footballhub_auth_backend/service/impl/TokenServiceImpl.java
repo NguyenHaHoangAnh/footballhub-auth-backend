@@ -16,12 +16,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -38,10 +33,12 @@ public class TokenServiceImpl implements TokenService {
     private final SignatureAlgorithm ALGORITHM = SignatureAlgorithm.HS256;
 
     @Override
-    public String generateAccessToken(User user) {
+    public String generateAccessToken(User user, Long expiredDateMillis) {
         // Calculate expire date
-        LocalDateTime currentTime = LocalDateTime.now();
-        LocalDateTime expireTime = currentTime.plusMinutes(tokenProperties.getAccessTokenExpire());
+        long expireAt;
+        expireAt = expiredDateMillis == null
+                ? System.currentTimeMillis() + tokenProperties.getAccessTokenExpire() * 60 * 1000
+                : expiredDateMillis;
         // Set claims
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getUserId());
@@ -49,16 +46,18 @@ public class TokenServiceImpl implements TokenService {
 
         return Jwts.builder()
                 .setClaims(claims)
-                .setExpiration(Date.from(expireTime.atZone(ZoneId.systemDefault()).toInstant()))
+                .setExpiration(new Date(expireAt))
                 .signWith(Keys.hmacShaKeyFor(tokenProperties.getSecretKey().getBytes()), ALGORITHM)
                 .compact();
     }
 
     @Override
-    public String generateRefreshToken(User user) {
+    public String generateRefreshToken(User user, Long expiredDateMillis) {
         // Calculate expire date
-        LocalDateTime currentTime = LocalDateTime.now();
-        LocalDateTime expireTime = currentTime.plusDays(tokenProperties.getRefreshTokenExpire());
+        long expireAt;
+        expireAt = expiredDateMillis == null
+                ? System.currentTimeMillis() + tokenProperties.getAccessTokenExpire() * 24 * 60 * 60 * 1000
+                : expiredDateMillis;
         // Set claims
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getUserId());
@@ -66,13 +65,13 @@ public class TokenServiceImpl implements TokenService {
 
         return Jwts.builder()
                 .setClaims(claims)
-                .setExpiration(Date.from(expireTime.atZone(ZoneId.systemDefault()).toInstant()))
+                .setExpiration(new Date(expireAt))
                 .signWith(Keys.hmacShaKeyFor(tokenProperties.getSecretKey().getBytes()), ALGORITHM)
                 .compact();
     }
 
     @Override
-    public TokenResponseDto validateToken(String accessToken, String requestUrl, String requestMethod) {
+    public TokenResponseDto validateToken(String token, String requestUrl, String requestMethod) {
         TokenResponseDto tokenResponseDto = TokenResponseDto.builder()
                 .success(false)
                 .forbidden(true)
@@ -82,24 +81,24 @@ public class TokenServiceImpl implements TokenService {
             Claims claims = Jwts.parserBuilder()
                     .setSigningKey(Keys.hmacShaKeyFor(tokenProperties.getSecretKey().getBytes()))
                     .build()
-                    .parseClaimsJws(accessToken)
+                    .parseClaimsJws(token)
                     .getBody();
 
-            Integer userId = ((Number) claims.get("userId")).intValue();
+            Long userId = ((Number) claims.get("userId")).longValue();
             Optional<User> optionalUser = userRepository.findById(userId);
 
             if (optionalUser.isPresent()) {
                 User user = optionalUser.get();
                 tokenResponseDto = TokenResponseDto.builder()
                         .success(true)
-                        .forbidden(true)
+                        .forbidden(false)
                         .info(modelMapper.map(user, UserDto.class))
                         .build();
             }
         } catch (ExpiredJwtException expiredJwtException) {
-            log.error("[access token expired] {}", accessToken, expiredJwtException);
+            log.error("[access token expired] {}", token, expiredJwtException);
         } catch (Exception e) {
-            log.error("[access token error] {}", accessToken, e);
+            log.error("[access token error] {}", token, e);
         }
 
         return tokenResponseDto;

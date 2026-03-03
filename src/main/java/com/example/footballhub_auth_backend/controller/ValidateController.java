@@ -17,7 +17,7 @@ public class ValidateController {
     @RequestMapping(value = "/token", method = RequestMethod.POST, produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE})
     @CrossOrigin("/**")
     @ResponseBody
-    public TokenResponseDto validateToken(TokenRequestDto tokenRequestDto) {
+    public TokenResponseDto validateToken(@RequestBody TokenRequestDto tokenRequestDto) {
         return tokenService.validateToken(tokenRequestDto.getAccessToken(), tokenRequestDto.getRequestUrl(), tokenRequestDto.getRequestMethod());
     }
 }

@@ -29,4 +29,18 @@ public class AuthController {
     public ResponseMsg<?> register(@RequestBody RegisterRequestDto requestDto) throws Exception {
         return this.authService.register(requestDto);
     }
+
+    @RequestMapping(value = "/refresh", method = RequestMethod.POST, produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE})
+    @CrossOrigin("/**")
+    @ResponseBody
+    public ResponseEntity<?> refresh(@CookieValue(name = "refreshToken", required = false) String refreshToken) throws Exception {
+        return this.authService.refresh(refreshToken);
+    }
+
+    @RequestMapping(value = "/logout", method = RequestMethod.POST, produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE})
+    @CrossOrigin("/**")
+    @ResponseBody
+    public ResponseEntity<?> logout(@CookieValue(name = "refreshToken", required = false) String refreshToken) throws Exception {
+        return this.authService.logout(refreshToken);
+    }
 }

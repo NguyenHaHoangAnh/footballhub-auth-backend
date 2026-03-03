@@ -18,5 +18,6 @@ public enum ResultCode {
         String USER_EXISTED = "USER_EXISTED";
         String PASSWORD_MIN_LENGTH = "PASSWORD_MIN_LENGTH";
         String PASSWORD_NOT_MATCH = "PASSWORD_NOT_MATCH";
+        String INVALID_REFRESH_TOKEN = "INVALID_REFRESH_TOKEN";
     }
 }

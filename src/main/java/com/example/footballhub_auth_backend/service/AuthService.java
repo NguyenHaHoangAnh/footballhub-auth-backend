@@ -9,4 +9,8 @@ public interface AuthService {
     ResponseEntity<?> login(LoginRequestDto requestDto) throws Exception;
 
     ResponseMsg<?> register(RegisterRequestDto requestDto) throws Exception;
+
+    ResponseEntity<?> refresh(String refreshToken) throws Exception;
+
+    ResponseEntity<?> logout(String refreshToken) throws Exception;
 }
