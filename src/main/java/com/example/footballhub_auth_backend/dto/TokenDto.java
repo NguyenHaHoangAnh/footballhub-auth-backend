@@ -13,9 +13,11 @@ import lombok.NoArgsConstructor;
 public class TokenDto {
     private String accessToken;
 
-//    private String refreshToken;
+    private String refreshToken;
 
     private String type;
 
     private UserDto info;
+
+    private Long expiredAt;
 }

@@ -3,6 +3,7 @@ package com.example.footballhub_auth_backend.service;
 import com.example.core.message.ResponseMsg;
 import com.example.footballhub_auth_backend.dto.LoginRequestDto;
 import com.example.footballhub_auth_backend.dto.RegisterRequestDto;
+import com.example.footballhub_auth_backend.model.RefreshToken;
 import org.springframework.http.ResponseEntity;
 
 public interface AuthService {
@@ -10,7 +11,7 @@ public interface AuthService {
 
     ResponseMsg<?> register(RegisterRequestDto requestDto) throws Exception;
 
-    ResponseEntity<?> refresh(String refreshToken) throws Exception;
+    ResponseEntity<?> refresh(RefreshToken refreshToken) throws Exception;
 
-    ResponseEntity<?> logout(String refreshToken) throws Exception;
+    ResponseEntity<?> logout(RefreshToken refreshToken) throws Exception;
 }

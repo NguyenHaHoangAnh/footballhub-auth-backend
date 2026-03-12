@@ -51,21 +51,44 @@ public class AuthServiceImpl implements AuthService {
 
     private static final Integer minPasswordLength = 6;
 
-    public TokenDto generateToken(User user, int authType, Long expiredDateMillis) throws Exception {
-        String accessToken = tokenService.generateAccessToken(user, expiredDateMillis);
+    public TokenDto generateToken(User user, int authType) throws Exception {
+        long now = System.currentTimeMillis();
+        long accessExpireAt = now + tokenProperties.getAccessTokenExpire() * 60 * 1000;
+        long refreshExpireAt = now + tokenProperties.getRefreshTokenExpire() * 24 * 60 * 60 * 1000;
+        String accessToken = tokenService.generateAccessToken(user, accessExpireAt);
+        String refreshToken = tokenService.generateRefreshToken(user, refreshExpireAt);
+
+        Optional<RefreshToken> optionalRefreshToken = this.refreshTokenRepository.findByUserId(user.getUserId());
+        if (optionalRefreshToken.isPresent()) {
+            RefreshToken existedRefreshToken = optionalRefreshToken.get();
+            existedRefreshToken.setRefreshToken(refreshToken);
+            existedRefreshToken.setExpiredAt(new Date(refreshExpireAt));
+            this.refreshTokenRepository.save(existedRefreshToken);
+        } else {
+            RefreshToken newRefreshToken = new RefreshToken();
+            newRefreshToken.setRefreshToken(refreshToken);
+            newRefreshToken.setUserId(user.getUserId());
+            newRefreshToken.setExpiredAt(new Date(refreshExpireAt));
+            this.refreshTokenRepository.save(newRefreshToken);
+        }
+
         TokenDto tokenDto;
 
         if (authType == AuthType.BEARER.getValue()) {
             tokenDto = TokenDto.builder()
                     .accessToken(accessToken)
+                    .refreshToken(refreshToken)
                     .type(AuthType.BEARER.name())
                     .info(modelMapper.map(user, UserDto.class))
+                    .expiredAt(accessExpireAt)
                     .build();
         } else if (authType == AuthType.BASIC.getValue()) {
             tokenDto = TokenDto.builder()
                     .accessToken(accessToken)
+                    .refreshToken(refreshToken)
                     .type(AuthType.BASIC.name())
                     .info(modelMapper.map(user, UserDto.class))
+                    .expiredAt(accessExpireAt)
                     .build();
         } else {
             log.error("[GenerateToken error] {}", user.getUsername());
@@ -85,41 +108,11 @@ public class AuthServiceImpl implements AuthService {
                     return new ResponseEntity<>(ResultCode.Code.WRONG_PASSWORD, HttpStatus.INTERNAL_SERVER_ERROR);
                 }
 
-                long now = System.currentTimeMillis();
-                long accessExpireAt = now + tokenProperties.getAccessTokenExpire() * 60 * 1000;
-                long refreshExpireAt = now + tokenProperties.getRefreshTokenExpire() * 24 * 60 * 60 * 1000;
                 // authType là int, giá trị mặc định = 0
-                TokenDto tokenDto = generateToken(user, requestDto.getAuthType(), accessExpireAt);
-                // Tạo refresh token, lưu vào db
-                String refreshToken = tokenService.generateRefreshToken(user, refreshExpireAt);
-                Optional<RefreshToken> optionalRefreshToken = this.refreshTokenRepository.findByUserId(user.getUserId());
-                if (optionalRefreshToken.isPresent()) {
-                    RefreshToken existedRefreshToken = optionalRefreshToken.get();
-                    existedRefreshToken.setRefreshToken(refreshToken);
-                    existedRefreshToken.setExpiredAt(new Date(refreshExpireAt));
-                    this.refreshTokenRepository.save(existedRefreshToken);
-                } else {
-                    RefreshToken newRefreshToken = new RefreshToken();
-                    newRefreshToken.setRefreshToken(refreshToken);
-                    newRefreshToken.setUserId(user.getUserId());
-                    newRefreshToken.setExpiredAt(new Date(refreshExpireAt));
-                    this.refreshTokenRepository.save(newRefreshToken);
-                }
+                TokenDto tokenDto = generateToken(user, requestDto.getAuthType());
 
-                // Set Http-only cookie
-                HttpHeaders headers = new HttpHeaders();
                 if (tokenDto != null && tokenDto.getAccessToken() != null) {
-                    ResponseCookie cookie = ResponseCookie
-                            .from("refreshToken", refreshToken)
-                            .httpOnly(true)
-//                            .secure(true)
-                            .path("/")
-//                            .sameSite("None")
-                            .maxAge(Duration.ofDays(tokenProperties.getRefreshTokenExpire()))
-                            .build();
-                    headers.add(HttpHeaders.SET_COOKIE, cookie.toString());
-
-                    return new  ResponseEntity<>(tokenDto, headers, HttpStatus.OK);
+                    return new  ResponseEntity<>(tokenDto, HttpStatus.OK);
                 }
 
                 return null;
@@ -164,19 +157,24 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public ResponseEntity<?> refresh(String refreshToken) throws Exception {
+    public ResponseEntity<?> refresh(RefreshToken refreshToken) throws Exception {
         try {
             if (refreshToken == null) {
                 log.error("[refresh token is null]");
-                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.INTERNAL_SERVER_ERROR);
+                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
-            TokenResponseDto tokenResponseDto = this.tokenService.validateToken(refreshToken, null, null);
+            TokenResponseDto tokenResponseDto = this.tokenService.validateToken(refreshToken.getRefreshToken(), null, null);
+            if (tokenResponseDto.getInfo() == null) {
+                log.error("[refresh token response is null]");
+                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
+            }
+
             Optional<User> optionalUser = this.userRepository.findByUserId(tokenResponseDto.getInfo().getUserId());
 
             if (optionalUser.isEmpty()) {
                 log.error("[user not found] {}", refreshToken);
-                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.INTERNAL_SERVER_ERROR);
+                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
             User user = optionalUser.get();
@@ -184,37 +182,23 @@ public class AuthServiceImpl implements AuthService {
             Optional<RefreshToken> optionalRefreshToken = this.refreshTokenRepository.findByUserId(user.getUserId());
             if (optionalRefreshToken.isEmpty()) {
                 log.error("[refresh token not existed] userId={} refreshToken={}", user.getUserId(), refreshToken);
-                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.INTERNAL_SERVER_ERROR);
+                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
             RefreshToken existedRefreshToken = optionalRefreshToken.get();
-            if (existedRefreshToken.getRefreshToken() == null || !existedRefreshToken.getRefreshToken().equals(refreshToken)) {
+            if (existedRefreshToken.getRefreshToken() == null || !existedRefreshToken.getRefreshToken().equals(refreshToken.getRefreshToken())) {
                 log.error("[refresh token not match] refreshToke={} existedRefreshToken={}", refreshToken, existedRefreshToken);
-                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.INTERNAL_SERVER_ERROR);
+                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
-            long now = System.currentTimeMillis();
-            long accessExpireAt = now + tokenProperties.getAccessTokenExpire() * 60 * 1000;
-            TokenDto tokenDto = generateToken(user, 0, accessExpireAt);
+            TokenDto tokenDto = generateToken(user, 0);
 
-            // Set Http-only cookie
-            HttpHeaders headers = new HttpHeaders();
             if (tokenDto != null && tokenDto.getAccessToken() != null) {
-                ResponseCookie cookie = ResponseCookie
-                        .from("refreshToken", refreshToken)
-                        .httpOnly(true)
-//                            .secure(true)
-                        .path("/")
-//                            .sameSite("None")
-                        .maxAge(Duration.ofDays(tokenProperties.getRefreshTokenExpire()))
-                        .build();
-                headers.add(HttpHeaders.SET_COOKIE, cookie.toString());
-
-                return new  ResponseEntity<>(tokenDto, headers, HttpStatus.OK);
+                return new  ResponseEntity<>(tokenDto, HttpStatus.OK);
             }
 
             log.error("[cannot create tokenDto] {}", refreshToken);
-            return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
         } catch (Exception e) {
             log.error("[Refresh error] {}", refreshToken, e);
             throw new Exception(e);
@@ -222,45 +206,18 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public ResponseEntity<?> logout(String refreshToken) throws Exception {
+    public ResponseEntity<?> logout(RefreshToken refreshToken) throws Exception {
         try {
-            if (refreshToken == null) {
-                log.error("[logout refresh token is null]");
-                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.INTERNAL_SERVER_ERROR);
-            }
-
-            TokenResponseDto tokenResponseDto = this.tokenService.validateToken(refreshToken, null, null);
-            Optional<User> optionalUser = this.userRepository.findByUserId(tokenResponseDto.getInfo().getUserId());
-
-            if (optionalUser.isEmpty()) {
-                log.error("[logout user not found] {}", refreshToken);
-                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.INTERNAL_SERVER_ERROR);
-            }
-
-            User user = optionalUser.get();
-
-            Optional<RefreshToken> optionalRefreshToken = this.refreshTokenRepository.findByUserId(user.getUserId());
+            Optional<RefreshToken> optionalRefreshToken = this.refreshTokenRepository.findByRefreshToken(refreshToken.getRefreshToken());
             if (optionalRefreshToken.isEmpty()) {
-                log.error("[logout refresh token not existed] userId={} refreshToken={}", user.getUserId(), refreshToken);
-                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.INTERNAL_SERVER_ERROR);
+                log.error("[logout refresh token not existed] refreshToken={}", refreshToken.getRefreshToken());
+                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
             RefreshToken existedRefreshToken = optionalRefreshToken.get();
             this.refreshTokenRepository.delete(existedRefreshToken);
 
-            // Set Http-only cookie
-            HttpHeaders headers = new HttpHeaders();
-            ResponseCookie cookie = ResponseCookie
-                    .from("refreshToken", null)
-                    .httpOnly(true)
-//                            .secure(true)
-                    .path("/")
-//                            .sameSite("None")
-                    .maxAge(Duration.ofDays(tokenProperties.getRefreshTokenExpire()))
-                    .build();
-            headers.add(HttpHeaders.SET_COOKIE, cookie.toString());
-
-            return new  ResponseEntity<>("Logout successfully", headers, HttpStatus.OK);
+            return new  ResponseEntity<>("Logout successfully", HttpStatus.OK);
         } catch (Exception e) {
             log.error("[Logout error] {}", refreshToken, e);
             throw new Exception(e);
