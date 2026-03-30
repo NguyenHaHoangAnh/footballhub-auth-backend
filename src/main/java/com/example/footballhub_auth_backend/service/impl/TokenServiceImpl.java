@@ -96,9 +96,9 @@ public class TokenServiceImpl implements TokenService {
                         .build();
             }
         } catch (ExpiredJwtException expiredJwtException) {
-            log.error("[access token expired] {}", token, expiredJwtException);
+            log.error("[token] expired {}", token, expiredJwtException);
         } catch (Exception e) {
-            log.error("[access token error] {}", token, e);
+            log.error("[token] error {}", token, e);
         }
 
         return tokenResponseDto;

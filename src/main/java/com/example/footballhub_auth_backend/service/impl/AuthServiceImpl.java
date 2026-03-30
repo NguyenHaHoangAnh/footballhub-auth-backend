@@ -91,7 +91,7 @@ public class AuthServiceImpl implements AuthService {
                     .expiredAt(accessExpireAt)
                     .build();
         } else {
-            log.error("[GenerateToken error] {}", user.getUsername());
+            log.error("[generateToken] error {}", user.getUsername());
             throw new Exception(HttpStatus.UNAUTHORIZED.toString());
         }
 
@@ -114,13 +114,11 @@ public class AuthServiceImpl implements AuthService {
                 if (tokenDto != null && tokenDto.getAccessToken() != null) {
                     return new  ResponseEntity<>(tokenDto, HttpStatus.OK);
                 }
-
-                return null;
             }
 
             return new ResponseEntity<>(ResultCode.Code.USERNAME_NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
-            log.error("[Login error] {}", requestDto.getUsername(), e);
+            log.error("[login] error {}", requestDto.getUsername(), e);
             throw new Exception(e);
         }
     }
@@ -129,19 +127,19 @@ public class AuthServiceImpl implements AuthService {
     public ResponseMsg<?> register(RegisterRequestDto requestDto) throws Exception {
         try {
             if (requestDto.getPassword().length() < minPasswordLength) {
-                log.error("[Register error] {} {}", requestDto.getUsername(), ResultCode.Code.PASSWORD_MIN_LENGTH);
+                log.error("[register] error {} {}", requestDto.getUsername(), ResultCode.Code.PASSWORD_MIN_LENGTH);
                 return ResponseMsg.newResponse(HttpStatus.INTERNAL_SERVER_ERROR, ResultCode.Code.PASSWORD_MIN_LENGTH);
             }
 
             if (!requestDto.getPassword().equals(requestDto.getConfirmPassword())) {
-                log.error("[Register error] {} {}", requestDto.getUsername(), ResultCode.Code.PASSWORD_NOT_MATCH);
+                log.error("[register] error {} {}", requestDto.getUsername(), ResultCode.Code.PASSWORD_NOT_MATCH);
                 return ResponseMsg.newResponse(HttpStatus.INTERNAL_SERVER_ERROR, ResultCode.Code.PASSWORD_NOT_MATCH);
             }
 
             Optional<User> optionalUser = this.userRepository.findByUsernameIgnoreCase(requestDto.getUsername());
 
             if (optionalUser.isPresent()) {
-                log.error("[Register error] {} {}", requestDto.getUsername(), ResultCode.Code.USER_EXISTED);
+                log.error("[register] error {} {}", requestDto.getUsername(), ResultCode.Code.USER_EXISTED);
                 return ResponseMsg.newResponse(HttpStatus.INTERNAL_SERVER_ERROR, ResultCode.Code.USER_EXISTED);
             }
 
@@ -151,7 +149,7 @@ public class AuthServiceImpl implements AuthService {
             this.userRepository.save(newUser);
             return ResponseMsg.newOKResponse();
         } catch (Exception e) {
-            log.error("[Register error] {}", requestDto.getUsername(), e);
+            log.error("[register] error {}", requestDto.getUsername(), e);
             throw new Exception(e);
         }
     }
@@ -160,20 +158,20 @@ public class AuthServiceImpl implements AuthService {
     public ResponseEntity<?> refresh(RefreshToken refreshToken) throws Exception {
         try {
             if (refreshToken == null) {
-                log.error("[refresh token is null]");
+                log.error("[refresh] token is null");
                 return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
             TokenResponseDto tokenResponseDto = this.tokenService.validateToken(refreshToken.getRefreshToken(), null, null);
             if (tokenResponseDto.getInfo() == null) {
-                log.error("[refresh token response is null]");
+                log.error("[refresh] token response is null");
                 return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
             Optional<User> optionalUser = this.userRepository.findByUserId(tokenResponseDto.getInfo().getUserId());
 
             if (optionalUser.isEmpty()) {
-                log.error("[user not found] {}", refreshToken);
+                log.error("[refresh] user not found {}", refreshToken);
                 return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
@@ -181,13 +179,18 @@ public class AuthServiceImpl implements AuthService {
 
             Optional<RefreshToken> optionalRefreshToken = this.refreshTokenRepository.findByUserId(user.getUserId());
             if (optionalRefreshToken.isEmpty()) {
-                log.error("[refresh token not existed] userId={} refreshToken={}", user.getUserId(), refreshToken);
+                log.error("[refresh] token not existed userId={} refreshToken={}", user.getUserId(), refreshToken);
                 return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
             RefreshToken existedRefreshToken = optionalRefreshToken.get();
             if (existedRefreshToken.getRefreshToken() == null || !existedRefreshToken.getRefreshToken().equals(refreshToken.getRefreshToken())) {
-                log.error("[refresh token not match] refreshToke={} existedRefreshToken={}", refreshToken, existedRefreshToken);
+                log.error("[refresh] token not match refreshToken={} existedRefreshToken={}", refreshToken, existedRefreshToken);
+                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
+            }
+
+            if (existedRefreshToken.getExpiredAt().getTime() < System.currentTimeMillis()) {
+                log.error("[refresh] token expired refreshToken={} expiredAt={}", refreshToken, existedRefreshToken.getExpiredAt());
                 return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
@@ -197,10 +200,10 @@ public class AuthServiceImpl implements AuthService {
                 return new  ResponseEntity<>(tokenDto, HttpStatus.OK);
             }
 
-            log.error("[cannot create tokenDto] {}", refreshToken);
+            log.error("[refresh] cannot create tokenDto {}", refreshToken);
             return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
         } catch (Exception e) {
-            log.error("[Refresh error] {}", refreshToken, e);
+            log.error("[refresh] error {}", refreshToken, e);
             throw new Exception(e);
         }
     }
@@ -210,16 +213,16 @@ public class AuthServiceImpl implements AuthService {
         try {
             Optional<RefreshToken> optionalRefreshToken = this.refreshTokenRepository.findByRefreshToken(refreshToken.getRefreshToken());
             if (optionalRefreshToken.isEmpty()) {
-                log.error("[logout refresh token not existed] refreshToken={}", refreshToken.getRefreshToken());
-                return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
+                log.error("[logout] refresh token not existed refreshToken={}", refreshToken.getRefreshToken());
+                return new ResponseEntity<>("Logout successfully", HttpStatus.OK);
             }
 
             RefreshToken existedRefreshToken = optionalRefreshToken.get();
             this.refreshTokenRepository.delete(existedRefreshToken);
 
-            return new  ResponseEntity<>("Logout successfully", HttpStatus.OK);
+            return new ResponseEntity<>("Logout successfully", HttpStatus.OK);
         } catch (Exception e) {
-            log.error("[Logout error] {}", refreshToken, e);
+            log.error("[logout] error {}", refreshToken, e);
             throw new Exception(e);
         }
     }
