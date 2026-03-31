@@ -51,7 +51,7 @@ public class AuthServiceImpl implements AuthService {
 
     private static final Integer minPasswordLength = 6;
 
-    public TokenDto generateToken(User user, int authType) throws Exception {
+    public TokenDto generateToken(User user, int authType, boolean isRefresh) throws Exception {
         long now = System.currentTimeMillis();
         long accessExpireAt = now + tokenProperties.getAccessTokenExpire() * 60 * 1000;
         long refreshExpireAt = now + tokenProperties.getRefreshTokenExpire() * 24 * 60 * 60 * 1000;
@@ -62,7 +62,10 @@ public class AuthServiceImpl implements AuthService {
         if (optionalRefreshToken.isPresent()) {
             RefreshToken existedRefreshToken = optionalRefreshToken.get();
             existedRefreshToken.setRefreshToken(refreshToken);
-            existedRefreshToken.setExpiredAt(new Date(refreshExpireAt));
+            // if login (not refresh) -> update refresh expires
+            if (!isRefresh) {
+                existedRefreshToken.setExpiredAt(new Date(refreshExpireAt));
+            }
             this.refreshTokenRepository.save(existedRefreshToken);
         } else {
             RefreshToken newRefreshToken = new RefreshToken();
@@ -109,7 +112,7 @@ public class AuthServiceImpl implements AuthService {
                 }
 
                 // authType là int, giá trị mặc định = 0
-                TokenDto tokenDto = generateToken(user, requestDto.getAuthType());
+                TokenDto tokenDto = generateToken(user, requestDto.getAuthType(), false);
 
                 if (tokenDto != null && tokenDto.getAccessToken() != null) {
                     return new  ResponseEntity<>(tokenDto, HttpStatus.OK);
@@ -194,7 +197,7 @@ public class AuthServiceImpl implements AuthService {
                 return new ResponseEntity<>(ResultCode.Code.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED);
             }
 
-            TokenDto tokenDto = generateToken(user, 0);
+            TokenDto tokenDto = generateToken(user, 0, true);
 
             if (tokenDto != null && tokenDto.getAccessToken() != null) {
                 return new  ResponseEntity<>(tokenDto, HttpStatus.OK);
